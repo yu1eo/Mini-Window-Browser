@@ -86,7 +86,6 @@ private:
     static constexpr UINT kDeferredNewTabMessage = WM_APP + 67;
     static constexpr UINT kRecreateWebViewMessage = WM_APP + 68;
     static constexpr UINT kTargetForegroundChanged = WM_APP + 70;
-    static constexpr UINT kTargetForegroundChanged = WM_APP + 70;
 #ifdef XIAOCHUANG_SMOKE_TEST
     static constexpr UINT kSetWebTypingSmokeMessage = WM_APP + 64;
     static constexpr UINT kSetWebFullscreenSmokeMessage = WM_APP + 65;
@@ -312,7 +311,6 @@ private:
 #endif
     bool updatingSettingsControls_ = false;
     bool autoHiddenForTargetWindow_ = false;
-    bool targetWindowCapturePending_ = false;
     bool targetWindowCapturePending_ = false;
     HWINEVENTHOOK foregroundEventHook_ = nullptr;
     bool waitingForTabContent_ = false;
