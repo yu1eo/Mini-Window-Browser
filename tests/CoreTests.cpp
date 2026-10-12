@@ -145,6 +145,12 @@ void TestConfigMigration() {
     std::cout << "]\n";
     Check(presetReloaded.presets.size() == 1 && presetReloaded.presets[0].tabs.size() == 3,
           L"预设完整保存全部标签页");
+    std::cout << "[DIAG active-tab=" << presetReloaded.presets[0].activeTab
+              << " title-length=" << presetReloaded.presets[0].tabs[1].title.size();
+    for (wchar_t character : presetReloaded.presets[0].tabs[1].title) {
+        std::cout << " title-code=" << static_cast<unsigned int>(character);
+    }
+    std::cout << "]\n";
     Check(presetReloaded.presets[0].activeTab == 1 &&
           presetReloaded.presets[0].tabs[1].title == L"抖音",
           L"预设保存当前标签索引和标题");
