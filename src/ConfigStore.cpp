@@ -104,6 +104,7 @@ bool ConfigStore::Load(AppState& state) const {
     state.settings.fixedWebZoomEnabled = ReadInt(path_, kSettings, L"FixedWebZoomEnabled", 0) != 0;
     state.settings.fixedWebZoomPercent = ReadInt(path_, kSettings, L"FixedWebZoomPercent", 100);
     state.settings.autoPauseOnHide = ReadInt(path_, kSettings, L"AutoPause", 1) != 0;
+    state.settings.autoHideOnFocusLoss = ReadInt(path_, kSettings, L"AutoHideOnFocusLoss", 0) != 0;
     state.settings.disableHotkeysOnTyping = ReadInt(path_, kSettings, L"DisableHkOnTyping", 1) != 0;
     state.settings.useSystemTray = ReadInt(path_, kSettings, L"SystemTray", 0) != 0;
     state.settings.backgroundMediaHotkeys = ReadInt(path_, kSettings, L"BackgroundMediaHotkeys", 0) != 0;
@@ -174,6 +175,7 @@ bool ConfigStore::Load(AppState& state) const {
         preset.fixedWebZoomPercent = std::clamp(
             ReadInt(path_, kPresets, prefix + L"FixedWebZoomPercent", 100), 25, 500);
         preset.autoPauseOnHide = ReadInt(path_, kPresets, prefix + L"Pause", 1) != 0;
+        preset.autoHideOnFocusLoss = ReadInt(path_, kPresets, prefix + L"HideOnFocusLoss", 0) != 0;
         preset.disableHotkeysOnTyping = ReadInt(path_, kPresets, prefix + L"HkTyping", 1) != 0;
         preset.useSystemTray = ReadInt(path_, kPresets, prefix + L"SysTray", 0) != 0;
         preset.backgroundMediaHotkeys = ReadInt(path_, kPresets, prefix + L"BackgroundMedia", 0) != 0;
@@ -232,6 +234,7 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
     WriteInt(transactionPath, kSettings, L"FixedWebZoomEnabled", settings.fixedWebZoomEnabled ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"FixedWebZoomPercent", settings.fixedWebZoomPercent);
     WriteInt(transactionPath, kSettings, L"AutoPause", settings.autoPauseOnHide ? 1 : 0);
+    WriteInt(transactionPath, kSettings, L"AutoHideOnFocusLoss", settings.autoHideOnFocusLoss ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"DisableHkOnTyping", settings.disableHotkeysOnTyping ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"SystemTray", settings.useSystemTray ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"BackgroundMediaHotkeys", settings.backgroundMediaHotkeys ? 1 : 0);
@@ -308,6 +311,7 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
         WriteInt(transactionPath, kPresets, prefix + L"FixedWebZoomEnabled", preset.fixedWebZoomEnabled ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"FixedWebZoomPercent", preset.fixedWebZoomPercent);
         WriteInt(transactionPath, kPresets, prefix + L"Pause", preset.autoPauseOnHide ? 1 : 0);
+        WriteInt(transactionPath, kPresets, prefix + L"HideOnFocusLoss", preset.autoHideOnFocusLoss ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"HkTyping", preset.disableHotkeysOnTyping ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"SysTray", preset.useSystemTray ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"BackgroundMedia", preset.backgroundMediaHotkeys ? 1 : 0);
