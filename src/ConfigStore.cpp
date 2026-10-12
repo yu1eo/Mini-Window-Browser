@@ -14,7 +14,10 @@ bool EnsureUnicodeIniFile(const std::filesystem::path& path) {
     HANDLE file = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                               OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (file == INVALID_HANDLE_VALUE) return false;
-    const auto closeFile = wil::scope_exit([&] { CloseHandle(file); });
+    struct HandleGuard {
+        HANDLE value;
+        ~HandleGuard() { if (value != INVALID_HANDLE_VALUE) CloseHandle(value); }
+    } closeFile{file};
     LARGE_INTEGER size{};
     if (!GetFileSizeEx(file, &size) || size.QuadPart > 16 * 1024 * 1024) return false;
     std::vector<BYTE> bytes(static_cast<size_t>(size.QuadPart));
