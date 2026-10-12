@@ -79,7 +79,8 @@ struct AppSettings {
     int fixedWebZoomPercent = 100;
     bool fixedWebZoomEnabled = false;
     bool autoPauseOnHide = true;
-    bool autoHideOnFocusLoss = false;
+    bool showOnlyForTargetWindow = false;
+    std::wstring targetWindowExecutable;
     bool disableHotkeysOnTyping = true;
     bool useSystemTray = false;
     bool backgroundMediaHotkeys = false;
@@ -126,7 +127,8 @@ struct Preset {
     int fixedWebZoomPercent = 100;
     bool fixedWebZoomEnabled = false;
     bool autoPauseOnHide = true;
-    bool autoHideOnFocusLoss = false;
+    bool showOnlyForTargetWindow = false;
+    std::wstring targetWindowExecutable;
     bool disableHotkeysOnTyping = true;
     bool useSystemTray = false;
     bool backgroundMediaHotkeys = false;
