@@ -556,11 +556,11 @@ LRESULT Application::HandleMainMessage(HWND window, UINT message, WPARAM wParam,
     case WM_ACTIVATEAPP:
         // WM_ACTIVATEAPP is process-wide, so owned windows such as Settings do not
         // trigger the behavior. Only switching away from the application hides it.
-        if (!wParam && state_.settings.autoHideOnFocusLoss && !windowModes_.IsHidden()) {
-            autoHiddenByFocusLoss_ = true;
+        if (!wParam && state_.settings.showOnlyForTargetWindow && !windowModes_.IsHidden()) {
+            autoHiddenForTargetWindow_ = true;
             SetHidden(true);
-        } else if (wParam && autoHiddenByFocusLoss_) {
-            autoHiddenByFocusLoss_ = false;
+        } else if (wParam && autoHiddenForTargetWindow_) {
+            autoHiddenForTargetWindow_ = false;
             SetHidden(false);
         }
         return 0;
@@ -1830,8 +1830,8 @@ void Application::CreateSettingsControls(HWND window) {
     y += Scale(30);
     settingsControls_.autoPause = checkbox(L"隐藏窗口时自动暂停视频", SettingsAutoPause, y);
     y += Scale(30);
-    settingsControls_.autoHideOnFocusLoss = checkbox(
-        L"焦点离开小窗时自动隐藏，回到小窗时自动显示", SettingsAutoHideOnFocusLoss, y);
+    settingsControls_.targetWindowOnly = checkbox(
+        L"仅在目标窗口位于前台时显示小窗", SettingsTargetWindowOnly, y);
     y += Scale(30);
     settingsControls_.fixedZoom = checkbox(L"固定网页缩放比例", SettingsFixedZoom, y);
     y += Scale(30);
@@ -1948,7 +1948,7 @@ void Application::ReadSettingsControls() {
     state_.settings.holeRadius = ParseInteger(settingsControls_.radius, old.holeRadius);
     state_.settings.snapThreshold = ParseInteger(settingsControls_.snap, old.snapThreshold);
     state_.settings.autoPauseOnHide = IsChecked(settingsControls_.autoPause);
-    state_.settings.autoHideOnFocusLoss = IsChecked(settingsControls_.autoHideOnFocusLoss);
+    state_.settings.showOnlyForTargetWindow = IsChecked(settingsControls_.autoHideOnFocusLoss);
     state_.settings.fixedWebZoomEnabled = IsChecked(settingsControls_.fixedZoom);
     state_.settings.fixedWebZoomPercent = ParseInteger(
         settingsControls_.zoomPercent, old.fixedWebZoomPercent);
@@ -2010,7 +2010,7 @@ void Application::RefreshSettingsControls() {
     SetWindowTextW(settingsControls_.snap, std::to_wstring(state_.settings.snapThreshold).c_str());
     SetWindowTextW(settingsControls_.home, state_.settings.homeUrl.c_str());
     SetCheck(settingsControls_.autoPause, state_.settings.autoPauseOnHide);
-    SetCheck(settingsControls_.autoHideOnFocusLoss, state_.settings.autoHideOnFocusLoss);
+    SetCheck(settingsControls_.autoHideOnFocusLoss, state_.settings.showOnlyForTargetWindow);
     SetCheck(settingsControls_.fixedZoom, state_.settings.fixedWebZoomEnabled);
     SetWindowTextW(settingsControls_.zoomPercent, std::to_wstring(state_.settings.fixedWebZoomPercent).c_str());
     EnableWindow(settingsControls_.zoomPercent, state_.settings.fixedWebZoomEnabled ? TRUE : FALSE);
@@ -2642,7 +2642,7 @@ void Application::ApplyPreset(const Preset& preset) {
     state_.settings.fixedWebZoomEnabled = preset.fixedWebZoomEnabled;
     state_.settings.fixedWebZoomPercent = preset.fixedWebZoomPercent;
     state_.settings.autoPauseOnHide = preset.autoPauseOnHide;
-    state_.settings.autoHideOnFocusLoss = preset.autoHideOnFocusLoss;
+    state_.settings.autoHideOnFocusLoss = preset.showOnlyForTargetWindow;
     state_.settings.disableHotkeysOnTyping = preset.disableHotkeysOnTyping;
     state_.settings.useSystemTray = preset.useSystemTray;
     state_.settings.backgroundMediaHotkeys = preset.backgroundMediaHotkeys;
@@ -2687,7 +2687,7 @@ Preset Application::CapturePreset(const std::wstring& name) const {
     preset.fixedWebZoomEnabled = state_.settings.fixedWebZoomEnabled;
     preset.fixedWebZoomPercent = state_.settings.fixedWebZoomPercent;
     preset.autoPauseOnHide = state_.settings.autoPauseOnHide;
-    preset.autoHideOnFocusLoss = state_.settings.autoHideOnFocusLoss;
+    preset.showOnlyForTargetWindow = state_.settings.autoHideOnFocusLoss;
     preset.disableHotkeysOnTyping = state_.settings.disableHotkeysOnTyping;
     preset.useSystemTray = state_.settings.useSystemTray;
     preset.backgroundMediaHotkeys = state_.settings.backgroundMediaHotkeys;
