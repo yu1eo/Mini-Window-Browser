@@ -58,7 +58,8 @@ private:
         SettingsLockFullscreenAspect = 2019,
         SettingsFixedZoom = 2020,
         SettingsZoomPercent = 2021,
-        SettingsAutoHideOnFocusLoss = 2022,
+        SettingsTargetWindowOnly = 2022,
+        SettingsPickTargetWindow = 2023,
         SettingsHotkeyBase = 2100,
         SettingsHotkeyEnabledBase = 2200,
 
@@ -84,6 +85,7 @@ private:
     static constexpr UINT kShowExistingInstance = WM_APP + 63;
     static constexpr UINT kDeferredNewTabMessage = WM_APP + 67;
     static constexpr UINT kRecreateWebViewMessage = WM_APP + 68;
+    static constexpr UINT kTargetForegroundChanged = WM_APP + 70;
 #ifdef XIAOCHUANG_SMOKE_TEST
     static constexpr UINT kSetWebTypingSmokeMessage = WM_APP + 64;
     static constexpr UINT kSetWebFullscreenSmokeMessage = WM_APP + 65;
@@ -303,7 +305,9 @@ private:
     bool smokeNavigationComplete_ = false;
 #endif
     bool updatingSettingsControls_ = false;
-    bool autoHiddenByFocusLoss_ = false;
+    bool autoHiddenForTargetWindow_ = false;
+    bool targetWindowCapturePending_ = false;
+    HWINEVENTHOOK foregroundEventHook_ = nullptr;
     bool waitingForTabContent_ = false;
     UINT64 waitingNavigationId_ = 0;
     ULONGLONG contentWaitStartedAt_ = 0;
