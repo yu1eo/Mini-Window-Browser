@@ -10,6 +10,36 @@
 namespace xiaochuang {
 namespace {
 
+bool EnsureUnicodeIniFile(const std::filesystem::path& path) {
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    const auto closeFile = wil::scope_exit([&] { CloseHandle(file); });
+    LARGE_INTEGER size{};
+    if (!GetFileSizeEx(file, &size) || size.QuadPart > 16 * 1024 * 1024) return false;
+    std::vector<BYTE> bytes(static_cast<size_t>(size.QuadPart));
+    DWORD read = 0;
+    if (!bytes.empty() && (!ReadFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr) ||
+                           read != bytes.size())) return false;
+    if (bytes.size() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) return true;
+    const int wideLength = bytes.empty() ? 0 : MultiByteToWideChar(
+        CP_ACP, 0, reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()),
+        nullptr, 0);
+    if (!bytes.empty() && wideLength <= 0) return false;
+    std::vector<wchar_t> wide(static_cast<size_t>(wideLength));
+    if (wideLength > 0) MultiByteToWideChar(CP_ACP, 0,
+        reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()),
+        wide.data(), wideLength);
+    SetFilePointer(file, 0, nullptr, FILE_BEGIN);
+    if (!SetEndOfFile(file)) return false;
+    const BYTE bom[] = {0xFF, 0xFE};
+    DWORD written = 0;
+    if (!WriteFile(file, bom, sizeof(bom), &written, nullptr) || written != sizeof(bom)) return false;
+    const DWORD byteCount = static_cast<DWORD>(wide.size() * sizeof(wchar_t));
+    return byteCount == 0 ||
+        (WriteFile(file, wide.data(), byteCount, &written, nullptr) && written == byteCount);
+}
+
 constexpr wchar_t kSettings[] = L"Settings";
 constexpr wchar_t kSession[] = L"Session";
 constexpr wchar_t kHotkeys[] = L"Hotkeys";
@@ -227,6 +257,7 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
         !CopyFileW(path_.c_str(), transactionPath.c_str(), FALSE)) {
         return false;
     }
+    if (!EnsureUnicodeIniFile(transactionPath)) return false;
     const AppSettings& settings = state.settings;
     WriteInt(transactionPath, kSettings, L"HoleRadius", settings.holeRadius);
     WriteInt(transactionPath, kSettings, L"SnapThreshold", settings.snapThreshold);
