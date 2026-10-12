@@ -58,6 +58,7 @@ private:
         SettingsLockFullscreenAspect = 2019,
         SettingsFixedZoom = 2020,
         SettingsZoomPercent = 2021,
+        SettingsAutoHideOnFocusLoss = 2022,
         SettingsHotkeyBase = 2100,
         SettingsHotkeyEnabledBase = 2200,
 
@@ -277,6 +278,7 @@ private:
         HWND opacityLabel = nullptr;
         HWND opacityPercent = nullptr;
         HWND autoPause = nullptr;
+        HWND autoHideOnFocusLoss = nullptr;
         HWND autoFitFullscreen = nullptr;
         HWND lockFullscreenAspect = nullptr;
         HWND fixedZoom = nullptr;
@@ -301,6 +303,7 @@ private:
     bool smokeNavigationComplete_ = false;
 #endif
     bool updatingSettingsControls_ = false;
+    bool autoHiddenByFocusLoss_ = false;
     bool waitingForTabContent_ = false;
     UINT64 waitingNavigationId_ = 0;
     ULONGLONG contentWaitStartedAt_ = 0;
