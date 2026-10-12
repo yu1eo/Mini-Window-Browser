@@ -10,6 +10,39 @@
 namespace xiaochuang {
 namespace {
 
+bool EnsureUnicodeIniFile(const std::filesystem::path& path) {
+    HANDLE file = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                              OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) return false;
+    struct HandleGuard {
+        HANDLE value;
+        ~HandleGuard() { if (value != INVALID_HANDLE_VALUE) CloseHandle(value); }
+    } closeFile{file};
+    LARGE_INTEGER size{};
+    if (!GetFileSizeEx(file, &size) || size.QuadPart > 16 * 1024 * 1024) return false;
+    std::vector<BYTE> bytes(static_cast<size_t>(size.QuadPart));
+    DWORD read = 0;
+    if (!bytes.empty() && (!ReadFile(file, bytes.data(), static_cast<DWORD>(bytes.size()), &read, nullptr) ||
+                           read != bytes.size())) return false;
+    if (bytes.size() >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE) return true;
+    const int wideLength = bytes.empty() ? 0 : MultiByteToWideChar(
+        CP_ACP, 0, reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()),
+        nullptr, 0);
+    if (!bytes.empty() && wideLength <= 0) return false;
+    std::vector<wchar_t> wide(static_cast<size_t>(wideLength));
+    if (wideLength > 0) MultiByteToWideChar(CP_ACP, 0,
+        reinterpret_cast<const char*>(bytes.data()), static_cast<int>(bytes.size()),
+        wide.data(), wideLength);
+    SetFilePointer(file, 0, nullptr, FILE_BEGIN);
+    if (!SetEndOfFile(file)) return false;
+    const BYTE bom[] = {0xFF, 0xFE};
+    DWORD written = 0;
+    if (!WriteFile(file, bom, sizeof(bom), &written, nullptr) || written != sizeof(bom)) return false;
+    const DWORD byteCount = static_cast<DWORD>(wide.size() * sizeof(wchar_t));
+    return byteCount == 0 ||
+        (WriteFile(file, wide.data(), byteCount, &written, nullptr) && written == byteCount);
+}
+
 constexpr wchar_t kSettings[] = L"Settings";
 constexpr wchar_t kSession[] = L"Session";
 constexpr wchar_t kHotkeys[] = L"Hotkeys";
@@ -104,6 +137,8 @@ bool ConfigStore::Load(AppState& state) const {
     state.settings.fixedWebZoomEnabled = ReadInt(path_, kSettings, L"FixedWebZoomEnabled", 0) != 0;
     state.settings.fixedWebZoomPercent = ReadInt(path_, kSettings, L"FixedWebZoomPercent", 100);
     state.settings.autoPauseOnHide = ReadInt(path_, kSettings, L"AutoPause", 1) != 0;
+    state.settings.showOnlyForTargetWindow = ReadInt(path_, kSettings, L"ShowOnlyForTargetWindow", 0) != 0;
+    state.settings.targetWindowExecutable = ReadString(path_, kSettings, L"TargetWindowExecutable", L"");
     state.settings.disableHotkeysOnTyping = ReadInt(path_, kSettings, L"DisableHkOnTyping", 1) != 0;
     state.settings.useSystemTray = ReadInt(path_, kSettings, L"SystemTray", 0) != 0;
     state.settings.backgroundMediaHotkeys = ReadInt(path_, kSettings, L"BackgroundMediaHotkeys", 0) != 0;
@@ -174,6 +209,8 @@ bool ConfigStore::Load(AppState& state) const {
         preset.fixedWebZoomPercent = std::clamp(
             ReadInt(path_, kPresets, prefix + L"FixedWebZoomPercent", 100), 25, 500);
         preset.autoPauseOnHide = ReadInt(path_, kPresets, prefix + L"Pause", 1) != 0;
+        preset.showOnlyForTargetWindow = ReadInt(path_, kPresets, prefix + L"TargetWindowOnly", 0) != 0;
+        preset.targetWindowExecutable = ReadString(path_, kPresets, prefix + L"TargetWindowExecutable", L"");
         preset.disableHotkeysOnTyping = ReadInt(path_, kPresets, prefix + L"HkTyping", 1) != 0;
         preset.useSystemTray = ReadInt(path_, kPresets, prefix + L"SysTray", 0) != 0;
         preset.backgroundMediaHotkeys = ReadInt(path_, kPresets, prefix + L"BackgroundMedia", 0) != 0;
@@ -223,6 +260,7 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
         !CopyFileW(path_.c_str(), transactionPath.c_str(), FALSE)) {
         return false;
     }
+    if (!EnsureUnicodeIniFile(transactionPath)) return false;
     const AppSettings& settings = state.settings;
     WriteInt(transactionPath, kSettings, L"HoleRadius", settings.holeRadius);
     WriteInt(transactionPath, kSettings, L"SnapThreshold", settings.snapThreshold);
@@ -232,6 +270,8 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
     WriteInt(transactionPath, kSettings, L"FixedWebZoomEnabled", settings.fixedWebZoomEnabled ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"FixedWebZoomPercent", settings.fixedWebZoomPercent);
     WriteInt(transactionPath, kSettings, L"AutoPause", settings.autoPauseOnHide ? 1 : 0);
+    WriteInt(transactionPath, kSettings, L"ShowOnlyForTargetWindow", settings.showOnlyForTargetWindow ? 1 : 0);
+    WriteString(transactionPath, kSettings, L"TargetWindowExecutable", settings.targetWindowExecutable);
     WriteInt(transactionPath, kSettings, L"DisableHkOnTyping", settings.disableHotkeysOnTyping ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"SystemTray", settings.useSystemTray ? 1 : 0);
     WriteInt(transactionPath, kSettings, L"BackgroundMediaHotkeys", settings.backgroundMediaHotkeys ? 1 : 0);
@@ -308,6 +348,8 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
         WriteInt(transactionPath, kPresets, prefix + L"FixedWebZoomEnabled", preset.fixedWebZoomEnabled ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"FixedWebZoomPercent", preset.fixedWebZoomPercent);
         WriteInt(transactionPath, kPresets, prefix + L"Pause", preset.autoPauseOnHide ? 1 : 0);
+        WriteInt(transactionPath, kPresets, prefix + L"TargetWindowOnly", preset.showOnlyForTargetWindow ? 1 : 0);
+        WriteString(transactionPath, kPresets, prefix + L"TargetWindowExecutable", preset.targetWindowExecutable);
         WriteInt(transactionPath, kPresets, prefix + L"HkTyping", preset.disableHotkeysOnTyping ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"SysTray", preset.useSystemTray ? 1 : 0);
         WriteInt(transactionPath, kPresets, prefix + L"BackgroundMedia", preset.backgroundMediaHotkeys ? 1 : 0);
@@ -323,10 +365,15 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
     std::error_code error;
     if (!std::filesystem::exists(transactionPath, error) || error) return false;
     const DWORD replaceFlags = REPLACEFILE_WRITE_THROUGH;
-    if (ReplaceFileW(path_.c_str(), transactionPath.c_str(), nullptr,
-                     replaceFlags, nullptr, nullptr)) return true;
-    if (MoveFileExW(transactionPath.c_str(), path_.c_str(),
-                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+    const bool replaced = ReplaceFileW(path_.c_str(), transactionPath.c_str(), nullptr,
+        replaceFlags, nullptr, nullptr) != FALSE ||
+        MoveFileExW(transactionPath.c_str(), path_.c_str(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    if (replaced) {
+        // Invalidate the Win32 INI profile cache after atomically replacing the file.
+        WritePrivateProfileStringW(nullptr, nullptr, nullptr, path_.c_str());
+        return true;
+    }
     DeleteFileW(transactionPath.c_str());
     return false;
 }
