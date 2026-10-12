@@ -280,7 +280,7 @@ private:
         HWND opacityLabel = nullptr;
         HWND opacityPercent = nullptr;
         HWND autoPause = nullptr;
-        HWND autoHideOnFocusLoss = nullptr;
+        HWND targetWindowOnly = nullptr;
         HWND autoFitFullscreen = nullptr;
         HWND lockFullscreenAspect = nullptr;
         HWND fixedZoom = nullptr;
