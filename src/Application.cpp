@@ -615,6 +615,7 @@ LRESULT Application::HandleMainMessage(HWND window, UINT message, WPARAM wParam,
         if (wParam == kHotkeyHoldTimerId) hotkeys_.Tick();
         else if (wParam == kImmersionTimerId) windowModes_.OnImmersionTimer();
         else if (wParam == kInputFallbackTimerId) {
+            HandleTargetForegroundChanged(GetForegroundWindow());
             const ULONGLONG now = GetTickCount64();
             if (lastHeartbeatTick_ != 0) {
                 maximumHeartbeatDelay_ = std::max(maximumHeartbeatDelay_, now - lastHeartbeatTick_);
@@ -1607,6 +1608,10 @@ void Application::SetHidden(bool hidden) {
     RefreshHotkeys();
 }
 
+std::wstring Application::ExecutableForWindow(HWND window) const { DWORD pid=0; GetWindowThreadProcessId(window,&pid); HANDLE p=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid); if(!p)return {}; std::vector<wchar_t>b(32768); DWORD n=(DWORD)b.size(); bool ok=QueryFullProcessImageNameW(p,0,b.data(),&n)!=FALSE; CloseHandle(p); return ok?std::wstring(b.data(),n):std::wstring{}; }
+void Application::BeginTargetWindowCapture() { targetWindowCapturePending_=true; ShowWindow(settingsWindow_,SW_MINIMIZE); }
+void Application::HandleTargetForegroundChanged(HWND w) { const auto exe=ExecutableForWindow(w); if(exe.empty())return; if(targetWindowCapturePending_){targetWindowCapturePending_=false;state_.settings.targetWindowExecutable=exe;SaveConfiguration();RefreshSettingsControls();} if(!state_.settings.showOnlyForTargetWindow||state_.settings.targetWindowExecutable.empty())return; const bool match=_wcsicmp(exe.c_str(),state_.settings.targetWindowExecutable.c_str())==0; if(match&&autoHiddenForTargetWindow_){autoHiddenForTargetWindow_=false;SetHidden(false);} else if(!match&&!windowModes_.IsHidden()){autoHiddenForTargetWindow_=true;SetHidden(true);} }
+
 void Application::ToggleImmersion() {
     hotkeys_.CancelActiveGesture();
     const bool entering = !windowModes_.IsImmersive();
@@ -1830,9 +1835,13 @@ void Application::CreateSettingsControls(HWND window) {
     y += Scale(30);
     settingsControls_.autoPause = checkbox(L"隐藏窗口时自动暂停视频", SettingsAutoPause, y);
     y += Scale(30);
-    settingsControls_.targetWindowOnly = checkbox(
-        L"仅在目标窗口位于前台时显示小窗", SettingsTargetWindowOnly, y);
+    settingsControls_.targetWindowOnly = checkbox(L"仅在目标窗口位于前台时显示小窗", SettingsTargetWindowOnly, y);
     y += Scale(30);
+    settingsControls_.pickTargetWindow = CreateThemedButton(window, L"选择目标窗口…", SettingsPickTargetWindow);
+    MoveWindow(settingsControls_.pickTargetWindow, fieldX, y, Scale(150), Scale(29), FALSE);
+    settingsControls_.targetWindowLabel = CreateLabel(window, L"尚未选择目标窗口");
+    MoveWindow(settingsControls_.targetWindowLabel, fieldX + Scale(164), y + Scale(4), Scale(310), Scale(24), FALSE);
+    y += Scale(36);
     settingsControls_.fixedZoom = checkbox(L"固定网页缩放比例", SettingsFixedZoom, y);
     y += Scale(30);
     label(L"网页缩放（%）", y);
@@ -1948,7 +1957,7 @@ void Application::ReadSettingsControls() {
     state_.settings.holeRadius = ParseInteger(settingsControls_.radius, old.holeRadius);
     state_.settings.snapThreshold = ParseInteger(settingsControls_.snap, old.snapThreshold);
     state_.settings.autoPauseOnHide = IsChecked(settingsControls_.autoPause);
-    state_.settings.showOnlyForTargetWindow = IsChecked(settingsControls_.autoHideOnFocusLoss);
+    state_.settings.showOnlyForTargetWindow = IsChecked(settingsControls_.targetWindowOnly);
     state_.settings.fixedWebZoomEnabled = IsChecked(settingsControls_.fixedZoom);
     state_.settings.fixedWebZoomPercent = ParseInteger(
         settingsControls_.zoomPercent, old.fixedWebZoomPercent);
@@ -2010,7 +2019,8 @@ void Application::RefreshSettingsControls() {
     SetWindowTextW(settingsControls_.snap, std::to_wstring(state_.settings.snapThreshold).c_str());
     SetWindowTextW(settingsControls_.home, state_.settings.homeUrl.c_str());
     SetCheck(settingsControls_.autoPause, state_.settings.autoPauseOnHide);
-    SetCheck(settingsControls_.autoHideOnFocusLoss, state_.settings.showOnlyForTargetWindow);
+    SetCheck(settingsControls_.targetWindowOnly, state_.settings.showOnlyForTargetWindow);
+    SetWindowTextW(settingsControls_.targetWindowLabel, state_.settings.targetWindowExecutable.empty() ? L"尚未选择目标窗口" : std::filesystem::path(state_.settings.targetWindowExecutable).filename().c_str());
     SetCheck(settingsControls_.fixedZoom, state_.settings.fixedWebZoomEnabled);
     SetWindowTextW(settingsControls_.zoomPercent, std::to_wstring(state_.settings.fixedWebZoomPercent).c_str());
     EnableWindow(settingsControls_.zoomPercent, state_.settings.fixedWebZoomEnabled ? TRUE : FALSE);
@@ -2137,6 +2147,7 @@ LRESULT Application::HandleSettingsMessage(HWND window, UINT message, WPARAM wPa
         return 0;
     case WM_COMMAND: {
         const int id = LOWORD(wParam);
+        if (id == SettingsPickTargetWindow) { BeginTargetWindowCapture(); return 0; }
         if (id >= SettingsHotkeyBase && id < SettingsHotkeyBase + static_cast<int>(kHotkeyCount)) {
             BeginHotkeyCapture(static_cast<HotkeyAction>(id - SettingsHotkeyBase));
             return 0;
@@ -2642,7 +2653,8 @@ void Application::ApplyPreset(const Preset& preset) {
     state_.settings.fixedWebZoomEnabled = preset.fixedWebZoomEnabled;
     state_.settings.fixedWebZoomPercent = preset.fixedWebZoomPercent;
     state_.settings.autoPauseOnHide = preset.autoPauseOnHide;
-    state_.settings.autoHideOnFocusLoss = preset.showOnlyForTargetWindow;
+    state_.settings.showOnlyForTargetWindow = preset.showOnlyForTargetWindow;
+    state_.settings.targetWindowExecutable = preset.targetWindowExecutable;
     state_.settings.disableHotkeysOnTyping = preset.disableHotkeysOnTyping;
     state_.settings.useSystemTray = preset.useSystemTray;
     state_.settings.backgroundMediaHotkeys = preset.backgroundMediaHotkeys;
@@ -2687,7 +2699,8 @@ Preset Application::CapturePreset(const std::wstring& name) const {
     preset.fixedWebZoomEnabled = state_.settings.fixedWebZoomEnabled;
     preset.fixedWebZoomPercent = state_.settings.fixedWebZoomPercent;
     preset.autoPauseOnHide = state_.settings.autoPauseOnHide;
-    preset.showOnlyForTargetWindow = state_.settings.autoHideOnFocusLoss;
+    preset.showOnlyForTargetWindow = state_.settings.showOnlyForTargetWindow;
+    preset.targetWindowExecutable = state_.settings.targetWindowExecutable;
     preset.disableHotkeysOnTyping = state_.settings.disableHotkeysOnTyping;
     preset.useSystemTray = state_.settings.useSystemTray;
     preset.backgroundMediaHotkeys = state_.settings.backgroundMediaHotkeys;
