@@ -331,10 +331,15 @@ bool ConfigStore::Save(const AppState& state, const RECT& normalRect, bool maxim
     std::error_code error;
     if (!std::filesystem::exists(transactionPath, error) || error) return false;
     const DWORD replaceFlags = REPLACEFILE_WRITE_THROUGH;
-    if (ReplaceFileW(path_.c_str(), transactionPath.c_str(), nullptr,
-                     replaceFlags, nullptr, nullptr)) return true;
-    if (MoveFileExW(transactionPath.c_str(), path_.c_str(),
-                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+    const bool replaced = ReplaceFileW(path_.c_str(), transactionPath.c_str(), nullptr,
+        replaceFlags, nullptr, nullptr) != FALSE ||
+        MoveFileExW(transactionPath.c_str(), path_.c_str(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+    if (replaced) {
+        // Invalidate the Win32 INI profile cache after atomically replacing the file.
+        WritePrivateProfileStringW(nullptr, nullptr, nullptr, path_.c_str());
+        return true;
+    }
     DeleteFileW(transactionPath.c_str());
     return false;
 }
